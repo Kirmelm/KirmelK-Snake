@@ -9,7 +9,7 @@
 body {
   margin: 0;
   font-family: Arial;
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  background: #0f172a;
   color: white;
   text-align: center;
 }
@@ -17,35 +17,43 @@ body {
 h1 { margin: 10px; }
 
 canvas {
-  background: #000;
+  background: black;
   margin-top: 10px;
   border-radius: 10px;
   box-shadow: 0 0 20px lime;
 }
 
-#ui {
-  display: flex;
-  justify-content: space-around;
-  margin-top: 10px;
+#menu {
+  margin-top: 20px;
 }
 
 button {
-  padding: 10px;
+  padding: 12px 20px;
+  margin: 5px;
   border: none;
   border-radius: 10px;
   background: lime;
   font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 #controls {
-  margin-top: 20px;
+  display: none;
+  margin-top: 15px;
 }
 
 .ctrl {
   width: 70px;
   height: 70px;
-  margin: 5px;
   font-size: 20px;
+}
+
+/* показываем только на мобилке */
+@media (max-width: 768px) {
+  #controls {
+    display: block;
+  }
 }
 
 #leaderboard {
@@ -58,25 +66,23 @@ button {
 
 <h1>🐍 IMBA Snake</h1>
 
-<div id="ui">
-  <div>Счёт: <span id="score">0</span></div>
-  <button onclick="login()">Войти</button>
+<div id="menu">
+  <button onclick="startGame()">▶ Играть</button>
+  <button onclick="login()">🔐 Войти</button>
 </div>
 
 <canvas id="game" width="400" height="400"></canvas>
 
 <div id="controls">
-  <div>
-    <button class="ctrl" onclick="setDir(0,-20)">↑</button>
-  </div>
+  <div><button class="ctrl" onclick="setDir(0,-20)">↑</button></div>
   <div>
     <button class="ctrl" onclick="setDir(-20,0)">←</button>
     <button class="ctrl" onclick="setDir(20,0)">→</button>
   </div>
-  <div>
-    <button class="ctrl" onclick="setDir(0,20)">↓</button>
-  </div>
+  <div><button class="ctrl" onclick="setDir(0,20)">↓</button></div>
 </div>
+
+<h2>Счёт: <span id="score">0</span></h2>
 
 <div id="leaderboard">
   <h2>🌍 ТОП 10</h2>
@@ -90,46 +96,44 @@ button {
 
 <script>
 const firebaseConfig = {
-  apiKey: "AIzaSyCIbCwNQGMSM3uMuODaKLGG-rWumfbAJ0E",
+  apiKey: "AIzaSy...",
   authDomain: "kirmelk-dbd0e.firebaseapp.com",
   databaseURL: "https://kirmelk-dbd0e-default-rtdb.firebaseio.com/",
-  projectId: "kirmelk-dbd0e",
-  storageBucket: "kirmelk-dbd0e.appspot.com",
-  messagingSenderId: "151695594619",
-  appId: "1:151695594619:web:08b54f7b86c20b7746bede"
+  projectId: "kirmelk-dbd0e"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let user = null;
+firebase.auth().onAuthStateChanged(u => user = u);
 
-// ===== AUTH =====
 function login() {
   const provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().signInWithPopup(provider);
 }
 
-firebase.auth().onAuthStateChanged(u => {
-  user = u;
-});
-
-// ===== SOUND =====
-const eatSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
-const deathSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
-
 // ===== GAME =====
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let snake, dx, dy, food, score;
+let snake, dx, dy, food, score, running = false;
+
+function startGame() {
+  init();
+  if (!running) {
+    running = true;
+    loop();
+  }
+}
 
 function init() {
-  snake = [{x: 200, y: 200}];
+  snake = [{x:200,y:200}];
   dx = 20;
   dy = 0;
   score = 0;
   food = randomFood();
+  document.getElementById("score").innerText = 0;
 }
 
 function randomFood() {
@@ -140,13 +144,14 @@ function randomFood() {
 }
 
 function setDir(x,y) {
-  if (x !== -dx && y !== -dy) {
-    dx = x;
-    dy = y;
-  }
+  dx = x;
+  dy = y;
 }
 
 document.addEventListener("keydown", e => {
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
+    e.preventDefault(); // 🔥 фикс скролла
+  }
   if (e.key === "ArrowUp") setDir(0,-20);
   if (e.key === "ArrowDown") setDir(0,20);
   if (e.key === "ArrowLeft") setDir(-20,0);
@@ -154,6 +159,8 @@ document.addEventListener("keydown", e => {
 });
 
 function loop() {
+  if (!running) return;
+
   setTimeout(() => {
     update();
     draw();
@@ -167,7 +174,6 @@ function update() {
 
   if (head.x === food.x && head.y === food.y) {
     score++;
-    eatSound.play();
     document.getElementById("score").innerText = score;
     food = randomFood();
   } else {
@@ -198,29 +204,26 @@ function draw() {
   ctx.fillRect(food.x,food.y,20,20);
 }
 
-// ===== GAME OVER =====
 function gameOver() {
-  deathSound.play();
+  running = false;
 
   let name = user ? user.displayName : prompt("Ник:");
   if (!name) name = "anon";
 
-  db.ref("scores").push({
-    name: name,
-    score: score
-  });
+  db.ref("scores").push({ name, score });
 
   alert("Game Over: " + score);
-  init();
 }
 
-// ===== LEADERBOARD =====
+// ===== ТОП (ФИКС) =====
 function loadTop() {
   db.ref("scores")
     .orderByChild("score")
     .limitToLast(10)
     .on("value", snap => {
+
       const arr = [];
+
       snap.forEach(c => arr.push(c.val()));
 
       arr.sort((a,b)=>b.score-a.score);
@@ -233,14 +236,11 @@ function loadTop() {
         li.textContent = i.name + " — " + i.score;
         list.appendChild(li);
       });
+
     });
 }
 
-// START
-init();
 loadTop();
-loop();
-
 </script>
 
 </body>
