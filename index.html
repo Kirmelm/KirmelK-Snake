@@ -4,41 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Snake Pro</title>
-    <!-- ПРОВЕРЕННЫЕ СКРИПТЫ -->
     <script src="https://gstatic.com"></script>
     <script src="https://gstatic.com"></script>
     <style>
         :root { --accent: #00f2fe; }
-        body { margin: 0; background: #050510; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
-        .stats { display: flex; gap: 30px; padding: 15px; font-weight: bold; }
-        #game-box { border: 2px solid var(--accent); border-radius: 8px; }
+        body { margin: 0; background: #050510; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow-x: hidden; }
+        .stats { display: flex; gap: 30px; padding: 15px; font-weight: bold; text-transform: uppercase; }
+        #game-box { border: 2px solid var(--accent); border-radius: 8px; position: relative; box-shadow: 0 0 15px var(--accent); }
         canvas { display: block; background: #000; }
         .controls { display: none; grid-template-areas: ". u ." "l d r"; gap: 10px; margin-top: 15px; }
-        .btn { width: 60px; height: 60px; border: 2px solid var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--accent); }
-        .leaderboard { width: 90%; max-width: 380px; margin: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; text-align: center; }
-        .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .btn { width: 65px; height: 65px; border: 2px solid var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--accent); background: rgba(255,255,255,0.05); user-select: none; }
+        .btn:active { background: var(--accent); color: #000; }
+        .leaderboard { width: 90%; max-width: 380px; margin: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; border: 1px solid rgba(0, 242, 254, 0.1); }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; }
         @media (max-width: 768px) { .controls { display: grid; } }
     </style>
 </head>
 <body>
 
     <div class="stats">
-        <div>SCORE: <span id="score">0</span></div>
-        <div>BEST: <span id="best">0</span></div>
+        <div>Score: <span id="score">0</span></div>
+        <div>Best: <span id="best">0</span></div>
     </div>
 
     <div id="game-box"><canvas id="snakeCanvas"></canvas></div>
 
     <div class="controls">
-        <div class="btn" style="grid-area: u" ontouchstart="window.handleDir('UP')">▲</div>
-        <div class="btn" style="grid-area: l" ontouchstart="window.handleDir('LEFT')">◀</div>
-        <div class="btn" style="grid-area: d" ontouchstart="window.handleDir('DOWN')">▼</div>
-        <div class="btn" style="grid-area: r" ontouchstart="window.handleDir('RIGHT')">▶</div>
+        <div class="btn" style="grid-area: u" ontouchstart="setDir('UP')">▲</div>
+        <div class="btn" style="grid-area: l" ontouchstart="setDir('LEFT')">◀</div>
+        <div class="btn" style="grid-area: d" ontouchstart="setDir('DOWN')">▼</div>
+        <div class="btn" style="grid-area: r" ontouchstart="setDir('RIGHT')">▶</div>
     </div>
 
     <div class="leaderboard">
-        <h3>GLOBAL TOP 100</h3>
-        <div id="leaderList">Синхронизация...</div>
+        <h3>GLOBAL TOP 10</h3>
+        <div id="leaderList">Загрузка...</div>
     </div>
 
 <script>
@@ -65,7 +65,15 @@
     let d = "RIGHT";
     let isGameOver = false;
 
-    window.handleDir = (dir) => {
+    // Управление
+    document.addEventListener("keydown", e => {
+        if(e.key === "ArrowLeft" && d !== "RIGHT") d = "LEFT";
+        else if(e.key === "ArrowUp" && d !== "DOWN") d = "UP";
+        else if(e.key === "ArrowRight" && d !== "LEFT") d = "RIGHT";
+        else if(e.key === "ArrowDown" && d !== "UP") d = "DOWN";
+    });
+
+    window.setDir = (dir) => {
         if(dir === "LEFT" && d !== "RIGHT") d = "LEFT";
         if(dir === "UP" && d !== "DOWN") d = "UP";
         if(dir === "RIGHT" && d !== "LEFT") d = "RIGHT";
@@ -74,40 +82,64 @@
 
     function draw() {
         if(isGameOver) return;
-        ctx.fillStyle = "#000"; ctx.fillRect(0,0,canvas.width, canvas.height);
-        ctx.fillStyle = "#ff0844"; ctx.beginPath(); ctx.arc(food.x+box/2, food.y+box/2, box/3.5, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0,0, canvas.width, canvas.height);
+
+        // Еда
+        ctx.fillStyle = "#ff0844";
+        ctx.beginPath(); ctx.arc(food.x+box/2, food.y+box/2, box/3.5, 0, Math.PI*2); ctx.fill();
+
+        // Змейка
         snake.forEach((c, i) => {
             ctx.fillStyle = i === 0 ? "#00f2fe" : "#00a2fe";
             ctx.beginPath(); ctx.roundRect(c.x+1, c.y+1, box-2, box-2, 5); ctx.fill();
         });
 
-        let hX = snake[0].x; let hY = snake[0].y;
-        if(d === "LEFT") hX -= box; if(d === "UP") hY -= box;
-        if(d === "RIGHT") hX += box; if(d === "DOWN") hY += box;
+        // Движение (берем голову snake[0])
+        let hX = snake[0].x;
+        let hY = snake[0].y;
 
-        if(hX === food.x && hY === food.y) {
-            score++; document.getElementById("score").innerText = score;
-            food = { x: Math.floor(Math.random()*(canvas.width/box))*box, y: Math.floor(Math.random()*(canvas.height/box))*box };
-        } else { snake.pop(); }
+        if(d === "LEFT") hX -= box;
+        if(d === "UP") hY -= box;
+        if(d === "RIGHT") hX += box;
+        if(d === "DOWN") hY += box;
 
         let newHead = {x: hX, y: hY};
+
+        // Логика еды
+        if(hX === food.x && hY === food.y) {
+            score++;
+            document.getElementById("score").innerText = score;
+            food = { x: Math.floor(Math.random()*(canvas.width/box))*box, y: Math.floor(Math.random()*(canvas.height/box))*box };
+        } else {
+            snake.pop();
+        }
+
+        // Проигрыш
         if(hX < 0 || hX >= canvas.width || hY < 0 || hY >= canvas.height || snake.some(c => c.x === hX && c.y === hY)) {
             isGameOver = true;
-            const name = prompt("Score: " + score + "\nName:") || "Anon";
-            db.ref('scores').push({ name, score, ts: Date.now() }).then(() => location.reload());
+            setTimeout(() => {
+                const name = prompt("Игра окончена! Счет: " + score + "\nВведи имя:") || "Аноним";
+                db.ref('scores').push({ name, score, ts: Date.now() }).then(() => location.reload());
+            }, 100);
             return;
         }
+
         snake.unshift(newHead);
         setTimeout(draw, 160);
     }
 
+    // Топ-10 из базы
     db.ref('scores').orderByChild('score').limitToLast(10).on('value', snap => {
         const data = snap.val();
         if (data) {
             const sorted = Object.values(data).sort((a, b) => b.score - a.score);
-            document.getElementById('leaderList').innerHTML = sorted.map((it, i) => `<div class="row"><span>${i+1}. ${it.name}</span><span>${it.score}</span></div>`).join('');
+            document.getElementById('leaderList').innerHTML = sorted.map((it, i) => `
+                <div class="row"><span>${i+1}. ${it.name}</span><span>${it.score}</span></div>
+            `).join('');
             document.getElementById('best').innerText = sorted[0].score;
-        } else { document.getElementById('leaderList').innerText = "Будь первым!"; }
+        }
     });
 
     draw();
