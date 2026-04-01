@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Snake Pro</title>
+    
+    <!-- Подключаем Firebase через надежный CDN -->
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+
+    <style>
+        :root { --accent: #00f2fe; --grid: rgba(0, 242, 254, 0.1); }
+        body { 
+            margin: 0; background: #050510; color: #fff; 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            touch-action: none; overflow-x: hidden; 
+        }
+        .stats { display: flex; gap: 30px; padding: 15px; font-weight: bold; letter-spacing: 1px; }
+        .stats span { color: var(--accent); text-shadow: 0 0 10px var(--accent); }
+        #game-box { border: 2px solid var(--accent); border-radius: 8px; box-shadow: 0 0 20px rgba(0, 242, 254, 0.2); }
+        canvas { display: block; background: #000; }
+        .controls { display: none; grid-template-areas: ". u ." "l d r"; gap: 10px; margin-top: 15px; }
+        .btn { 
+            width: 65px; height: 65px; border: 2px solid var(--accent); 
+            border-radius: 50%; display: flex; align-items: center; 
+            justify-content: center; font-size: 1.5rem; color: var(--accent); 
+            background: rgba(255,255,255,0.05); user-select: none;
+        }
+        .btn:active { background: var(--accent); color: #000; }
+        .leaderboard { 
+            width: 90%; max-width: 380px; margin: 20px; 
+            background: rgba(255,255,255,0.05); border-radius: 10px; 
+            padding: 15px; border: 1px solid var(--grid);
+        }
+        .leaderboard h3 { margin: 0 0 10px; font-size: 0.9rem; text-align: center; color: var(--accent); }
+        .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 0.85rem; }
+        @media (max-width: 768px) { .controls { display: grid; } }
+    </style>
+</head>
+<body>
+
+    <div class="stats">
+        <div>SCORE: <span id="score">0</span></div>
+        <div>BEST: <span id="best">0</span></div>
+    </div>
+
+    <div id="game-box">
+        <canvas id="snakeCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="btn" style="grid-area: u" ontouchstart="window.handleDir('UP')">▲</div>
+        <div class="btn" style="grid-area: l" ontouchstart="window.handleDir('LEFT')">◀</div>
+        <div class="btn" style="grid-area: d" ontouchstart="window.handleDir('DOWN')">▼</div>
+        <div class="btn" style="grid-area: r" ontouchstart="window.handleDir('RIGHT')">▶</div>
+    </div>
+
+    <div class="leaderboard">
+        <h3>GLOBAL TOP 100</h3>
+        <div id="leaderList">Синхронизация с миром...</div>
+    </div>
+
+<script>
+    // ТВОЙ КОНФИГ
+    const firebaseConfig = {
+      apiKey: "AIzaSyCIbCwNQGMSM3uMuODaKLGG-rWumfbAJ0E",
+      authDomain: "://firebaseapp.com",
+      databaseURL: "https://firebasedatabase.app",
+      projectId: "kirmelk-dbd0e",
+      appId: "1:151695594619:web:08b54f7b86c20b7746bede"
+    };
+
+    let db;
+    // Проверка загрузки Firebase
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    } else {
+        document.getElementById('leaderList').innerHTML = "<span style='color:#ff0844'>Ошибка: Скрипты Firebase заблокированы браузером!</span>";
+    }
+
+    const canvas = document.getElementById("snakeCanvas");
+    const ctx = canvas.getContext("2d");
+    const box = 20;
+    
+    canvas.width = Math.floor(Math.min(window.innerWidth * 0.95, 400) / box) * box;
+    canvas.height = canvas.width;
+
+    let score = 0;
+    let snake = [{x: 10*box, y: 10*box}];
+    let food = { x: 5*box, y: 5*box };
+    let d = "RIGHT";
+    let isGameOver = false;
+
+    // Клавиатура
+    document.addEventListener("keydown", e => {
+        if(e.key === "ArrowLeft" && d !== "RIGHT") d = "LEFT";
+        if(e.key === "ArrowUp" && d !== "DOWN") d = "UP";
+        if(e.key === "ArrowRight" && d !== "LEFT") d = "RIGHT";
+        if(e.key === "ArrowDown" && d !== "UP") d = "DOWN";
+    });
+
+    // Мобилки
+    window.handleDir = (dir) => {
+        if(dir === "LEFT" && d !== "RIGHT") d = "LEFT";
+        if(dir === "UP" && d !== "DOWN") d = "UP";
+        if(dir === "RIGHT" && d !== "LEFT") d = "RIGHT";
+        if(dir === "DOWN" && d !== "UP") d = "DOWN";
+    };
+
+    function draw() {
+        if(isGameOver) return;
+        
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0,0, canvas.width, canvas.height);
+
+        // Сетка
+        ctx.strokeStyle = "rgba(0, 242, 254, 0.05)";
+        for(let i=0; i<canvas.width; i+=box){
+            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+        }
+
+        // Еда
+        ctx.fillStyle = "#ff0844";
+        ctx.beginPath(); ctx.arc(food.x+box/2, food.y+box/2, box/3.5, 0, Math.PI*2); ctx.fill();
+
+        // Змейка
+        snake.forEach((c, i) => {
+            ctx.fillStyle = i === 0 ? "#00f2fe" : "#00a2fe";
+            ctx.beginPath(); ctx.roundRect(c.x+1, c.y+1, box-2, box-2, 5); ctx.fill();
+        });
+
+        let hX = snake[0].x;
+        let hY = snake[0].y;
+
+        if(d === "LEFT") hX -= box;
+        if(d === "UP") hY -= box;
+        if(d === "RIGHT") hX += box;
+        if(d === "DOWN") hY += box;
+
+        let newHead = {x: hX, y: hY};
+
+        if(hX === food.x && hY === food.y) {
+            score++;
+            document.getElementById("score").innerText = score;
+            food = { 
+                x: Math.floor(Math.random()*(canvas.width/box))*box, 
+                y: Math.floor(Math.random()*(canvas.height/box))*box 
+            };
+        } else {
+            snake.pop();
+        }
+
+        // Проверка столкновений
+        if(hX < 0 || hX >= canvas.width || hY < 0 || hY >= canvas.height || snake.some(c => c.x === hX && c.y === hY)) {
+            isGameOver = true;
+            setTimeout(() => {
+                const name = prompt("ИГРА ОКОНЧЕНА!\nТвой счет: " + score + "\nВведи имя для ТОПа:") || "Аноним";
+                if(db) {
+                    db.ref('scores').push({ name, score, ts: Date.now() }).then(() => location.reload());
+                } else {
+                    location.reload();
+                }
+            }, 100);
+            return;
+        }
+
+        snake.unshift(newHead);
+        setTimeout(draw, 160);
+    }
+
+    // Загрузка рекордов
+    if(db) {
+        db.ref('scores').orderByChild('score').limitToLast(10).on('value', snap => {
+            const data = snap.val();
+            if (data) {
+                const sorted = Object.values(data).sort((a, b) => b.score - a.score);
+                document.getElementById('leaderList').innerHTML = sorted.map((it, i) => `
+                    <div class="row"><span>${i+1}. ${it.name}</span><span>${it.score}</span></div>
+                `).join('');
+                document.getElementById('best').innerText = sorted[0].score;
+            } else {
+                document.getElementById('leaderList').innerText = "Топ пуст! Будь первым.";
+            }
+        });
+    }
+
+    draw();
+</script>
+</body>
+</html>
