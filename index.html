@@ -2,112 +2,93 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Neon Snake Global</title>
-
-<!-- ✅ Firebase -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMBA Snake</title>
 
 <style>
-:root { --accent: #00f2fe; }
-
 body {
-    margin: 0;
-    background: #050510;
-    color: #fff;
-    font-family: sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    overflow: hidden;
+  margin: 0;
+  font-family: Arial;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: white;
+  text-align: center;
 }
 
-.stats {
-    display: flex;
-    gap: 30px;
-    padding: 15px;
-    font-weight: bold;
+h1 { margin: 10px; }
+
+canvas {
+  background: #000;
+  margin-top: 10px;
+  border-radius: 10px;
+  box-shadow: 0 0 20px lime;
 }
 
-.stats span { color: var(--accent); }
-
-#game-box {
-    border: 2px solid var(--accent);
-    border-radius: 8px;
-    box-shadow: 0 0 15px var(--accent);
+#ui {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
 }
 
-canvas { display: block; background: #000; }
-
-.controls {
-    display: none;
-    grid-template-areas: ". u ." "l d r";
-    gap: 10px;
-    margin-top: 15px;
+button {
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: lime;
+  font-weight: bold;
 }
 
-.btn {
-    width: 65px;
-    height: 65px;
-    border: 2px solid var(--accent);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    color: var(--accent);
+#controls {
+  margin-top: 20px;
 }
 
-.btn:active { background: var(--accent); color: #000; }
-
-.leaderboard {
-    width: 90%;
-    max-width: 380px;
-    margin: 20px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    padding: 15px;
+.ctrl {
+  width: 70px;
+  height: 70px;
+  margin: 5px;
+  font-size: 20px;
 }
 
-.row {
-    display: flex;
-    justify-content: space-between;
-    padding: 5px 0;
-    font-size: 0.9rem;
-}
-
-@media (max-width: 768px) {
-    .controls { display: grid; }
+#leaderboard {
+  margin-top: 20px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="stats">
-    <div>SCORE: <span id="score">0</span></div>
-    <div>BEST: <span id="best">0</span></div>
+<h1>🐍 IMBA Snake</h1>
+
+<div id="ui">
+  <div>Счёт: <span id="score">0</span></div>
+  <button onclick="login()">Войти</button>
 </div>
 
-<div id="game-box">
-    <canvas id="snakeCanvas"></canvas>
+<canvas id="game" width="400" height="400"></canvas>
+
+<div id="controls">
+  <div>
+    <button class="ctrl" onclick="setDir(0,-20)">↑</button>
+  </div>
+  <div>
+    <button class="ctrl" onclick="setDir(-20,0)">←</button>
+    <button class="ctrl" onclick="setDir(20,0)">→</button>
+  </div>
+  <div>
+    <button class="ctrl" onclick="setDir(0,20)">↓</button>
+  </div>
 </div>
 
-<div class="controls">
-    <div class="btn" style="grid-area: u" ontouchstart="setDir('UP')">▲</div>
-    <div class="btn" style="grid-area: l" ontouchstart="setDir('LEFT')">◀</div>
-    <div class="btn" style="grid-area: d" ontouchstart="setDir('DOWN')">▼</div>
-    <div class="btn" style="grid-area: r" ontouchstart="setDir('RIGHT')">▶</div>
+<div id="leaderboard">
+  <h2>🌍 ТОП 10</h2>
+  <ol id="topList"></ol>
 </div>
 
-<div class="leaderboard">
-    <h3>GLOBAL TOP 10</h3>
-    <div id="leaderList">Загрузка...</div>
-</div>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-// 🔥 Firebase config (замени apiKey если нужно)
 const firebaseConfig = {
   apiKey: "AIzaSyCIbCwNQGMSM3uMuODaKLGG-rWumfbAJ0E",
   authDomain: "kirmelk-dbd0e.firebaseapp.com",
@@ -121,146 +102,145 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// 🎮 Canvas
-const canvas = document.getElementById("snakeCanvas");
+let user = null;
+
+// ===== AUTH =====
+function login() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider);
+}
+
+firebase.auth().onAuthStateChanged(u => {
+  user = u;
+});
+
+// ===== SOUND =====
+const eatSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+const deathSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+
+// ===== GAME =====
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const box = 20;
-canvas.width = Math.floor(Math.min(window.innerWidth * 0.95, 400) / box) * box;
-canvas.height = canvas.width;
+let snake, dx, dy, food, score;
 
-// 🎮 Game state
-let snake = [{x: 10*box, y: 10*box}];
-let direction = "RIGHT";
-let score = 0;
-let gameOver = false;
-
-// 🏆 Local best
-let bestLocal = localStorage.getItem("best") || 0;
-document.getElementById("best").innerText = bestLocal;
-
-// 🍎 Спавн еды (НЕ в змее)
-function spawnFood() {
-    let f;
-    do {
-        f = {
-            x: Math.floor(Math.random()*(canvas.width/box))*box,
-            y: Math.floor(Math.random()*(canvas.height/box))*box
-        };
-    } while (snake.some(s => s.x === f.x && s.y === f.y));
-    return f;
+function init() {
+  snake = [{x: 200, y: 200}];
+  dx = 20;
+  dy = 0;
+  score = 0;
+  food = randomFood();
 }
 
-let food = spawnFood();
+function randomFood() {
+  return {
+    x: Math.floor(Math.random()*20)*20,
+    y: Math.floor(Math.random()*20)*20
+  };
+}
 
-// 🎮 Управление
+function setDir(x,y) {
+  if (x !== -dx && y !== -dy) {
+    dx = x;
+    dy = y;
+  }
+}
+
 document.addEventListener("keydown", e => {
-    if(e.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
-    if(e.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
-    if(e.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
-    if(e.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+  if (e.key === "ArrowUp") setDir(0,-20);
+  if (e.key === "ArrowDown") setDir(0,20);
+  if (e.key === "ArrowLeft") setDir(-20,0);
+  if (e.key === "ArrowRight") setDir(20,0);
 });
 
-window.setDir = d => {
-    if(d === "LEFT" && direction !== "RIGHT") direction = "LEFT";
-    if(d === "UP" && direction !== "DOWN") direction = "UP";
-    if(d === "RIGHT" && direction !== "LEFT") direction = "RIGHT";
-    if(d === "DOWN" && direction !== "UP") direction = "DOWN";
-};
+function loop() {
+  setTimeout(() => {
+    update();
+    draw();
+    loop();
+  }, 100);
+}
 
-// 🎨 Рендер
+function update() {
+  const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    eatSound.play();
+    document.getElementById("score").innerText = score;
+    food = randomFood();
+  } else {
+    snake.pop();
+  }
+
+  if (collision(head)) {
+    gameOver();
+  }
+}
+
+function collision(head) {
+  if (head.x < 0 || head.y < 0 || head.x >= 400 || head.y >= 400) return true;
+  for (let i=1;i<snake.length;i++) {
+    if (head.x === snake[i].x && head.y === snake[i].y) return true;
+  }
+  return false;
+}
+
 function draw() {
-    if(gameOver) return;
+  ctx.fillStyle = "black";
+  ctx.fillRect(0,0,400,400);
 
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = "lime";
+  snake.forEach(s => ctx.fillRect(s.x,s.y,20,20));
 
-    // еда
-    ctx.fillStyle = "#ff0844";
-    ctx.beginPath();
-    ctx.arc(food.x+box/2, food.y+box/2, box/3, 0, Math.PI*2);
-    ctx.fill();
+  ctx.fillStyle = "red";
+  ctx.fillRect(food.x,food.y,20,20);
+}
 
-    // змейка
-    snake.forEach((s,i)=>{
-        ctx.fillStyle = i===0 ? "#00f2fe" : "#00a2fe";
-        ctx.fillRect(s.x+1,s.y+1,box-2,box-2);
+// ===== GAME OVER =====
+function gameOver() {
+  deathSound.play();
+
+  let name = user ? user.displayName : prompt("Ник:");
+  if (!name) name = "anon";
+
+  db.ref("scores").push({
+    name: name,
+    score: score
+  });
+
+  alert("Game Over: " + score);
+  init();
+}
+
+// ===== LEADERBOARD =====
+function loadTop() {
+  db.ref("scores")
+    .orderByChild("score")
+    .limitToLast(10)
+    .on("value", snap => {
+      const arr = [];
+      snap.forEach(c => arr.push(c.val()));
+
+      arr.sort((a,b)=>b.score-a.score);
+
+      const list = document.getElementById("topList");
+      list.innerHTML = "";
+
+      arr.forEach(i=>{
+        const li = document.createElement("li");
+        li.textContent = i.name + " — " + i.score;
+        list.appendChild(li);
+      });
     });
-
-    let head = {...snake[0]};
-
-    if(direction==="LEFT") head.x -= box;
-    if(direction==="RIGHT") head.x += box;
-    if(direction==="UP") head.y -= box;
-    if(direction==="DOWN") head.y += box;
-
-    // столкновение
-    if(
-        head.x < 0 || head.x >= canvas.width ||
-        head.y < 0 || head.y >= canvas.height ||
-        snake.some(s=>s.x===head.x && s.y===head.y)
-    ){
-        endGame();
-        return;
-    }
-
-    // еда
-    if(head.x === food.x && head.y === food.y){
-        score++;
-        document.getElementById("score").innerText = score;
-        food = spawnFood();
-    } else {
-        snake.pop();
-    }
-
-    snake.unshift(head);
-
-    setTimeout(draw, 140);
 }
 
-// 💀 Game Over
-function endGame(){
-    gameOver = true;
+// START
+init();
+loadTop();
+loop();
 
-    if(score > bestLocal){
-        localStorage.setItem("best", score);
-    }
-
-    setTimeout(()=>{
-        let name = prompt("GAME OVER\nСчет: "+score+"\nИмя:") || "Аноним";
-        name = name.substring(0,12);
-
-        db.ref("scores").push({
-            name,
-            score,
-            ts: Date.now()
-        }).then(()=>location.reload());
-
-    },100);
-}
-
-// 🌍 Leaderboard
-db.ref("scores")
-.orderByChild("score")
-.limitToLast(10)
-.on("value", snap => {
-    const data = snap.val();
-    if(!data){
-        document.getElementById("leaderList").innerText = "Пусто";
-        return;
-    }
-
-    const sorted = Object.values(data).sort((a,b)=>b.score-a.score);
-
-    document.getElementById("leaderList").innerHTML =
-        sorted.map((p,i)=>
-            `<div class="row"><span>${i+1}. ${p.name}</span><span>${p.score}</span></div>`
-        ).join("");
-
-    document.getElementById("best").innerText = sorted[0].score;
-});
-
-draw();
 </script>
 
 </body>
