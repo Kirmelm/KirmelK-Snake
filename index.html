@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KirmelK Snake</title>
+    <link rel="stylesheet" href="stile.css">
+</head>
+<body>
+
+    <div class="stats">
+        <div>SCORE: <span id="score">0</span></div>
+        <div>BEST: <span id="best">0</span></div>
+    </div>
+
+    <div id="game-box"><canvas id="snakeCanvas"></canvas></div>
+
+    <div class="controls">
+        <div class="btn" style="grid-area: u" ontouchstart="window.setDir('UP')">▲</div>
+        <div class="btn" style="grid-area: l" ontouchstart="window.setDir('LEFT')">◀</div>
+        <div class="btn" style="grid-area: d" ontouchstart="window.setDir('DOWN')">▼</div>
+        <div class="btn" style="grid-area: r" ontouchstart="window.setDir('RIGHT')">▶</div>
+    </div>
+
+    <div class="leaderboard">
+        <h3>топ 10 играков</h3>
+        <div id="leaderList"></div>
+    </div>
+    <script src="logik.js"></script>
+</body>
+</html>
